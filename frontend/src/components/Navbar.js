@@ -20,8 +20,9 @@ export default function Navbar() {
           <li><NavLink to="/">Home</NavLink></li>
           <li><NavLink to="/browse">Browse</NavLink></li>
           <li><NavLink to="/dashboard">My Dashboard</NavLink></li>
-          <li><NavLink to="/admin" className="btn-admin">Admin Panel</NavLink></li>
-        </ul>
+          <li><NavLink to="/login">Login / Sign Up</NavLink></li>
+          <li><NavLink to="/admin/login" className="btn-admin">Admin Panel</NavLink></li>  
+          <li><NavLink to="/company/login">For Companies</NavLink></li>      </ul>
       </div>
     </nav>
   );

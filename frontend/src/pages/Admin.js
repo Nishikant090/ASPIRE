@@ -4,15 +4,27 @@
  */
 
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   getOpportunities, createOpportunity, updateOpportunity, deleteOpportunity,
-  getAllApplications, updateApplicationStatus, getStats
+  getAllApplications, updateApplicationStatus, getStats, logout
 } from "../api";
 import Toast from "../components/Toast";
+import { getResetLogs } from "../api/passwordReset";
 
-const TABS = ["overview", "opportunities", "applications"];
-
+const TABS = ["overview", "opportunities", "applications", "companies", "reset-logs"];
 export default function Admin() {
+  const navigate = useNavigate();
+
+  // Protect route: redirect to admin login if not authenticated as admin
+  useEffect(() => {
+    const role = localStorage.getItem("role");
+    const token = localStorage.getItem("token");
+    if (!token || role !== "admin") {
+      navigate("/admin/login");
+    }
+  }, [navigate]);
+
   const [activeTab, setActiveTab] = useState("overview");
   const [opportunities, setOpportunities] = useState([]);
   const [applications, setApplications] = useState([]);
@@ -21,6 +33,7 @@ export default function Admin() {
   const [toast, setToast] = useState(null);
   const [showOppModal, setShowOppModal] = useState(false);
   const [editOpp, setEditOpp] = useState(null); // null = create, object = edit
+  const [resetLogs, setResetLogs] = useState([]);
 
   // Form state for create/edit opportunity
   const defaultForm = {
@@ -33,6 +46,14 @@ export default function Admin() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === "reset-logs") {
+      getResetLogs()
+        .then((r) => setResetLogs(r.data))
+        .catch(console.error);
+    }
+  }, [activeTab]);
 
   const loadData = async () => {
     setLoading(true);
@@ -139,28 +160,35 @@ export default function Admin() {
               width: "fit-content",
             }}
           >
-            {TABS.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                style={{
-                  padding: "8px 20px",
-                  borderRadius: "var(--radius-sm)",
-                  border: "none",
-                  fontWeight: 600,
-                  fontSize: "0.875rem",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                  background: activeTab === tab ? "var(--indigo)" : "transparent",
-                  color: activeTab === tab ? "white" : "var(--gray-500)",
-                  textTransform: "capitalize",
-                }}
-              >
-                {tab === "overview" ? "📊 Overview" :
-                 tab === "opportunities" ? "💼 Opportunities" :
-                 "📋 Applications"}
-              </button>
-            ))}
+            {TABS.map((tab) => {
+              const tabLabels = {
+  overview: "📊 Overview",
+  opportunities: "💼 Opportunities",
+  applications: "📋 Applications",
+  companies: "🏢 Companies",
+  "reset-logs": "🔐 Reset Logs"
+};
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  style={{
+                    padding: "8px 20px",
+                    borderRadius: "var(--radius-sm)",
+                    border: "none",
+                    fontWeight: 600,
+                    fontSize: "0.875rem",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    background: activeTab === tab ? "var(--indigo)" : "transparent",
+                    color: activeTab === tab ? "white" : "var(--gray-500)",
+                    textTransform: "capitalize",
+                  }}
+                >
+                  {tabLabels[tab] || `🏢 ${tab}`}
+                </button>
+              );
+            })}
           </div>
 
           {loading ? (
@@ -367,6 +395,84 @@ export default function Admin() {
                   </div>
                 </div>
               )}
+              {/* ── Companies Tab ── */}
+{activeTab === "companies" && (
+  <div>
+    <div className="section-header" style={{ marginBottom: 16 }}>
+      <h2 className="section-title">Company Management</h2>
+      <a href="/admin/companies" className="btn btn-primary btn-sm">
+        Open Full Company Panel →
+      </a>
+    </div>
+    <p style={{ color: "var(--gray-500)" }}>
+      Use the full company panel to approve registrations, manage companies, and review all company jobs.
+    </p>
+  </div>
+)}
+{/* ── Reset Logs Tab ── */}
+{activeTab === "reset-logs" && (
+  <div>
+    <div className="section-header" style={{ marginBottom: 16 }}>
+      <h2 className="section-title">Password Reset Logs</h2>
+      <button className="btn btn-secondary btn-sm" onClick={() =>
+        getResetLogs().then(r => setResetLogs(r.data))
+      }>
+        🔄 Load Logs
+      </button>
+    </div>
+    <div className="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>User Type</th>
+            <th>Action</th>
+            <th>IP Address</th>
+            <th>Time</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {resetLogs.map(log => (
+            <tr key={log.id}>
+              <td style={{ fontWeight: 500 }}>{log.email}</td>
+              <td>
+                <span className={`opp-type-badge ${log.user_type === "student" ? "badge-internship" : "badge-job"}`}>
+                  {log.user_type}
+                </span>
+              </td>
+              <td>
+                <span className={`opp-type-badge ${
+                  log.action === "password_changed" ? "badge-selected" :
+                  log.action === "failed"           ? "badge-rejected" :
+                  "badge-under-review"
+                }`}>
+                  {log.action}
+                </span>
+              </td>
+              <td style={{ color: "var(--gray-400)", fontSize: "0.82rem", fontFamily: "monospace" }}>
+                {log.ip_address || "—"}
+              </td>
+              <td style={{ color: "var(--gray-400)", fontSize: "0.82rem" }}>
+                {new Date(log.created_at).toLocaleString()}
+              </td>
+              <td style={{ color: "var(--gray-500)", fontSize: "0.82rem" }}>
+                {log.details || "—"}
+              </td>
+            </tr>
+          ))}
+          {resetLogs.length === 0 && (
+            <tr>
+              <td colSpan={6} style={{ textAlign: "center", padding: 48, color: "var(--gray-400)" }}>
+                Click "Load Logs" to view password reset audit trail
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  </div>
+)}
             </>
           )}
         </div>

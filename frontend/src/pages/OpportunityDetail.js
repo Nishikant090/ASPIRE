@@ -19,7 +19,7 @@ export default function OpportunityDetail() {
 
   // Application form state
   const [appForm, setAppForm] = useState({
-    name: "", email: "", college: "", branch: "", year: "", skills: "", cover_note: ""
+    name: "", email: "", college: "", branch: "", year: "", skills: "", cover_note: "", resume: null, resumeName: ""
   });
 
   useEffect(() => {
@@ -321,6 +321,42 @@ export default function OpportunityDetail() {
                   placeholder="Tell them why you're excited about this role..."
                   value={appForm.cover_note}
                   onChange={(e) => setAppForm({ ...appForm, cover_note: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Resume (PDF) - Recommended</label>
+                <div
+                  style={{
+                    border: "2px dashed var(--indigo-light)",
+                    borderRadius: "var(--radius-sm)",
+                    padding: "16px",
+                    textAlign: "center",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                  onClick={() => document.getElementById("resume-input-opp").click()}
+                >
+                  {appForm.resumeName ? (
+                    <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--gray-800)" }}>
+                      📄 {appForm.resumeName}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: "0.85rem", color: "var(--gray-500)" }}>
+                      📤 Click to upload PDF resume
+                    </div>
+                  )}
+                </div>
+                <input
+                  id="resume-input-opp"
+                  type="file"
+                  accept=".pdf"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file && file.name.endsWith(".pdf")) {
+                      setAppForm({ ...appForm, resume: file, resumeName: file.name });
+                    }
+                  }}
                 />
               </div>
               <div style={{ display: "flex", gap: 12 }}>

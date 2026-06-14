@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { getOpportunities } from "../api";
+import { getOpportunities, getCompanyJobs } from "../api";
 import OpportunityCard from "../components/OpportunityCard";
 
 export default function Browse() {
@@ -17,14 +17,23 @@ export default function Browse() {
   const [companies, setCompanies] = useState([]);
   const [selectedCompany, setSelectedCompany] = useState("");
 
-  // Fetch opportunities whenever filters change
+  // Fetch opportunities and company jobs whenever filters change
   const fetchOpportunities = (params = {}) => {
     setLoading(true);
-    getOpportunities(params)
-      .then((res) => {
-        setOpportunities(res.data);
+    Promise.all([
+      getOpportunities(params),
+      getCompanyJobs(params)
+    ])
+      .then(([oppRes, companyRes]) => {
+        // Merge both opportunities and company jobs
+        const allOpps = [...(oppRes.data || []), ...(companyRes.data || [])];
+        setOpportunities(allOpps);
         // Extract unique companies for the dropdown
-        const unique = [...new Set(res.data.map((o) => o.company))].sort();
+        const companyNames = allOpps.map((o) => {
+          if (o.company) return typeof o.company === 'string' ? o.company : o.company.name;
+          return o.company_name || "Unknown";
+        });
+        const unique = [...new Set(companyNames)].sort();
         setCompanies(unique);
       })
       .catch(console.error)

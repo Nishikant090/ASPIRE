@@ -11,6 +11,15 @@ const API = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+// Automatically attach JWT token to every request if one exists
+API.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // ─── Opportunities ────────────────────────────────────────────────────────────
 
 /** Fetch all opportunities with optional filters */
@@ -33,6 +42,12 @@ export const updateOpportunity = (id, data) =>
 
 /** Admin: Delete an opportunity */
 export const deleteOpportunity = (id) => API.delete(`/opportunities/${id}`);
+
+// ─── Company Jobs ─────────────────────────────────────────────────────────────
+
+/** Fetch all active company jobs with optional filters */
+export const getCompanyJobs = (params = {}) =>
+  API.get("/company-jobs", { params });
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
@@ -66,3 +81,44 @@ export const getAllApplications = () => API.get("/applications");
 /** Admin: Update application status */
 export const updateApplicationStatus = (appId, status) =>
   API.put(`/applications/${appId}/status`, { status });
+
+// ─── Auth ──────────────────────────────────────────────────────────────────────
+
+/** Step 1: Request OTP — works for both login and signup */
+export const sendOTP = (email, name = "") =>
+  API.post("/auth/send-otp", { email, name });
+
+/** Step 2: Verify OTP — returns JWT token + student_id */
+export const verifyOTP = (email, otp) =>
+  API.post("/auth/verify-otp", { email, otp });
+
+/** Admin login */
+// Note: backend reuses SendOTPRequest — email = admin email, name = password
+export const adminLogin = (email, password) =>
+  API.post("/auth/admin-login", { email, name: password });
+
+// ─── Token helpers ─────────────────────────────────────────────────────────────
+
+/** Save JWT token and student info to localStorage after login */
+export const saveAuthToken = (token, studentId, role = "student") => {
+  localStorage.setItem("token", token);
+  localStorage.setItem("role", role);
+  if (studentId) localStorage.setItem("studentId", studentId);
+};
+
+/** Read the saved JWT token */
+export const getToken = () => localStorage.getItem("token");
+
+/** Check if any user is logged in */
+export const isLoggedIn = () => !!localStorage.getItem("token");
+
+/** Check if logged-in user is admin */
+export const isAdmin = () => localStorage.getItem("role") === "admin";
+
+/** Log out: clear all auth data */
+export const logout = () => {
+  localStorage.removeItem("token");
+  localStorage.removeItem("role");
+  localStorage.removeItem("studentId");
+  localStorage.removeItem("studentEmail");
+};

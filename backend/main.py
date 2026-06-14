@@ -7,14 +7,31 @@ from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime
+from email_service import (
+    generate_otp, send_otp_email,
+    send_application_received_email,
+    send_status_update_email
+)
+from otp_store import save_otp, verify_otp, get_otp_name
+from auth import create_token, require_admin
+from config import ADMIN_EMAIL, ADMIN_PASSWORD
+
+from company_models import Base as CompanyBase
+import company_models
+from company_routes import router as company_router
+from admin_routes import router as admin_router
+from password_reset_routes import router as password_reset_router
+import password_reset_models
 
 import models
 import schemas
 from database import engine, get_db
+import company_schemas
 
 # Create all tables in the database
 models.Base.metadata.create_all(bind=engine)
+company_models.Base.metadata.create_all(bind=engine)
+password_reset_models.Base.metadata.create_all(bind=engine)
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -38,7 +55,7 @@ app.add_middleware(
 def seed_data(db: Session):
     """Add sample data if the database is empty."""
     if db.query(models.Opportunity).count() > 0:
-        return  # Already seeded
+        return
 
     sample_opportunities = [
         {
@@ -126,31 +143,7 @@ def seed_data(db: Session):
     for opp in sample_opportunities:
         db_opp = models.Opportunity(**opp)
         db.add(db_opp)
-
-    # Add a demo student
-    demo_student = models.Student(
-        name="Arjun Sharma",
-        email="arjun@student.com",
-        college="IIT Delhi",
-        branch="Computer Science",
-        year="3rd Year",
-        skills="Python, React.js, SQL, Machine Learning"
-    )
-    db.add(demo_student)
     db.commit()
-    db.refresh(demo_student)
-
-    # Add a sample application for demo student
-    opp = db.query(models.Opportunity).first()
-    if opp:
-        app_obj = models.Application(
-            student_id=demo_student.id,
-            opportunity_id=opp.id,
-            cover_note="I am very interested in this role and believe my skills align well.",
-            status=models.ApplicationStatus.under_review
-        )
-        db.add(app_obj)
-        db.commit()
 
 
 # Seed on startup
@@ -191,12 +184,7 @@ def list_opportunities(
     company: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """
-    List all opportunities with optional filtering.
-    - search: filter by title keyword
-    - type: 'job' or 'internship'
-    - company: filter by company name
-    """
+    """List all opportunities with optional filtering."""
     query = db.query(models.Opportunity)
 
     if search:
@@ -227,7 +215,7 @@ def get_opportunity(opportunity_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/opportunities", response_model=schemas.OpportunityOut, tags=["Admin"])
-def create_opportunity(opp: schemas.OpportunityCreate, db: Session = Depends(get_db)):
+def create_opportunity(opp: schemas.OpportunityCreate, db: Session = Depends(get_db), user: dict = Depends(require_admin)):
     """Admin: Create a new job or internship listing."""
     db_opp = models.Opportunity(**opp.dict())
     db.add(db_opp)
@@ -240,14 +228,14 @@ def create_opportunity(opp: schemas.OpportunityCreate, db: Session = Depends(get
 def update_opportunity(
     opportunity_id: int,
     opp_update: schemas.OpportunityUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_admin)
 ):
     """Admin: Update an existing opportunity."""
     opp = db.query(models.Opportunity).filter(models.Opportunity.id == opportunity_id).first()
     if not opp:
         raise HTTPException(status_code=404, detail="Opportunity not found")
 
-    # Only update fields that were provided
     update_data = opp_update.dict(exclude_unset=True)
     for field, value in update_data.items():
         setattr(opp, field, value)
@@ -258,7 +246,7 @@ def update_opportunity(
 
 
 @app.delete("/opportunities/{opportunity_id}", tags=["Admin"])
-def delete_opportunity(opportunity_id: int, db: Session = Depends(get_db)):
+def delete_opportunity(opportunity_id: int, db: Session = Depends(get_db), user: dict = Depends(require_admin)):
     """Admin: Delete an opportunity listing."""
     opp = db.query(models.Opportunity).filter(models.Opportunity.id == opportunity_id).first()
     if not opp:
@@ -272,10 +260,17 @@ def delete_opportunity(opportunity_id: int, db: Session = Depends(get_db)):
 
 @app.post("/students", response_model=schemas.StudentOut, tags=["Students"])
 def create_student(student: schemas.StudentCreate, db: Session = Depends(get_db)):
-    """Register a new student."""
+    """Register a new student or update existing profile."""
     existing = db.query(models.Student).filter(models.Student.email == student.email).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        existing.name = student.name
+        existing.college = student.college
+        existing.branch = student.branch
+        existing.year = student.year
+        existing.skills = student.skills
+        db.commit()
+        db.refresh(existing)
+        return existing
     db_student = models.Student(**student.dict())
     db.add(db_student)
     db.commit()
@@ -306,17 +301,14 @@ def get_student_by_email(email: str, db: Session = Depends(get_db)):
 @app.post("/applications", response_model=schemas.ApplicationOut, tags=["Applications"])
 def apply_to_opportunity(app_data: schemas.ApplicationCreate, db: Session = Depends(get_db)):
     """Student applies to an opportunity."""
-    # Check if student exists
     student = db.query(models.Student).filter(models.Student.id == app_data.student_id).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    # Check if opportunity exists
     opp = db.query(models.Opportunity).filter(models.Opportunity.id == app_data.opportunity_id).first()
     if not opp:
         raise HTTPException(status_code=404, detail="Opportunity not found")
 
-    # Prevent duplicate applications
     existing = db.query(models.Application).filter(
         models.Application.student_id == app_data.student_id,
         models.Application.opportunity_id == app_data.opportunity_id
@@ -328,6 +320,17 @@ def apply_to_opportunity(app_data: schemas.ApplicationCreate, db: Session = Depe
     db.add(new_app)
     db.commit()
     db.refresh(new_app)
+
+    try:
+        send_application_received_email(
+            to_email=student.email,
+            student_name=student.name,
+            job_title=opp.title,
+            company=opp.company
+        )
+    except Exception as e:
+        print(f"[Email] Failed to send application confirmation: {e}")
+
     return new_app
 
 
@@ -340,7 +343,7 @@ def get_student_applications(student_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/applications", response_model=List[schemas.ApplicationOut], tags=["Admin"])
-def get_all_applications(db: Session = Depends(get_db)):
+def get_all_applications(db: Session = Depends(get_db), user: dict = Depends(require_admin)):
     """Admin: Get all applications across all students."""
     return db.query(models.Application).order_by(
         models.Application.applied_at.desc()
@@ -351,7 +354,8 @@ def get_all_applications(db: Session = Depends(get_db)):
 def update_application_status(
     application_id: int,
     status_update: schemas.ApplicationStatusUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_admin)
 ):
     """Admin: Update the status of an application."""
     application = db.query(models.Application).filter(
@@ -360,13 +364,117 @@ def update_application_status(
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
 
+    old_status = application.status
     application.status = status_update.status
     db.commit()
     db.refresh(application)
+
+    if status_update.status in ["Selected", "Rejected"] and old_status != status_update.status:
+        try:
+            send_status_update_email(
+                to_email=application.student.email,
+                student_name=application.student.name,
+                job_title=application.opportunity.title,
+                company=application.opportunity.company,
+                status=status_update.status
+            )
+        except Exception as e:
+            print(f"[Email] Failed to send status update: {e}")
+
     return application
 
 
-# Root endpoint
+# ─── Auth ─────────────────────────────────────────────────────────────────────
+
+@app.post("/auth/admin-login", response_model=schemas.TokenOut, tags=["Auth"])
+def admin_login(request: schemas.SendOTPRequest, db: Session = Depends(get_db)):
+    """Admin login with email + password. Returns JWT with role=admin."""
+    if request.email != ADMIN_EMAIL or request.name != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin credentials")
+    token = create_token({"sub": request.email, "role": "admin"})
+    return schemas.TokenOut(access_token=token, role="admin")
+
+
+@app.post("/auth/login", response_model=schemas.TokenOut, tags=["Auth"])
+def student_login(request: schemas.SendOTPRequest, db: Session = Depends(get_db)):
+    """Initiate login: sends OTP to email."""
+    otp = generate_otp()
+    save_otp(request.email, otp, request.name)
+    success = send_otp_email(request.email, otp, request.name or "Student")
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to send OTP. Check Gmail config.")
+    return schemas.TokenOut(access_token="", student_id=None)
+
+
+@app.post("/auth/send-otp", tags=["Auth"])
+def send_otp_route(request: schemas.SendOTPRequest):
+    """Send a 6-digit OTP to the user's email. Expires in 5 minutes."""
+    otp = generate_otp()
+    save_otp(request.email, otp, request.name)
+    success = send_otp_email(request.email, otp, request.name or "Student")
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to send OTP email. Check your Gmail config.")
+    return {"message": "OTP sent successfully. Check your email."}
+
+
+@app.post("/auth/verify-otp", response_model=schemas.TokenOut, tags=["Auth"])
+def verify_otp_route(request: schemas.VerifyOTPRequest, db: Session = Depends(get_db)):
+    """Verify OTP and return JWT token."""
+    if not verify_otp(request.email, request.otp):
+        raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+
+    student = db.query(models.Student).filter(models.Student.email == request.email).first()
+
+    if student:
+        # Existing student: mark as verified
+        student.is_verified = 1
+        db.commit()
+        db.refresh(student)
+    else:
+        # New student: auto-create account on first OTP verification
+        name = get_otp_name(request.email) or "Student"
+        student = models.Student(
+            name=name,
+            email=request.email,
+            college="",
+            branch="",
+            year="",
+            is_verified=1
+        )
+        db.add(student)
+        db.commit()
+        db.refresh(student)
+
+    student_id = student.id
+    token = create_token({"sub": request.email, "role": "student"})
+    return schemas.TokenOut(access_token=token, student_id=student_id, role="student")
+
+
+# ─── Public Company Jobs (visible to students) ────────────────────────────────
+
+@app.get("/company-jobs", response_model=List[company_schemas.JobOut], tags=["Public"])
+def list_company_jobs(
+    search : Optional[str] = Query(None),
+    type   : Optional[str] = Query(None),
+    db     : Session = Depends(get_db)
+):
+    """All active company jobs — shown on student browse page."""
+    import company_models as cm
+    import company_schemas
+    query = db.query(cm.CompanyJob).filter(cm.CompanyJob.status == cm.JobStatus.active)
+    if search:
+        query = query.filter(cm.CompanyJob.title.ilike(f"%{search}%"))
+    if type:
+        query = query.filter(cm.CompanyJob.employment_type == type)
+    return query.order_by(cm.CompanyJob.created_at.desc()).all()
+
+app.include_router(company_router)
+app.include_router(admin_router)
+app.include_router(password_reset_router)
+
+
+# ─── Root ─────────────────────────────────────────────────────────────────────
+
 @app.get("/", tags=["General"])
 def root():
     return {"message": "Welcome to Aspire API 🚀", "docs": "/docs"}

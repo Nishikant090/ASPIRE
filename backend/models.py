@@ -51,7 +51,10 @@ class Student(Base):
     college = Column(String(200), nullable=False)
     branch = Column(String(100), nullable=False)
     year = Column(String(20), nullable=False)
-    skills = Column(String(500), nullable=True)
+    skills         = Column(String(500), nullable=True)
+    is_verified    = Column(Integer, default=0)
+    password_hash  = Column(String(500), nullable=True)  # set only after first password reset    # 0 = not verified, 1 = email verified
+    created_at = Column(DateTime, default=datetime.utcnow)
 
     # One student → many applications
     applications = relationship("Application", back_populates="student", cascade="all, delete-orphan")

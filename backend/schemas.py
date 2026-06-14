@@ -79,6 +79,7 @@ class StudentCreate(StudentBase):
 class StudentOut(StudentBase):
     """Schema for returning student data."""
     id: int
+    is_verified: Optional[int] = 0
 
     class Config:
         from_attributes = True
@@ -118,3 +119,22 @@ class StatsOut(BaseModel):
     total_internships: int
     total_companies: int
     total_applications: int
+
+# ─── OTP / Auth Schemas ───────────────────────────────────────────────────────
+
+class SendOTPRequest(BaseModel):
+    """Request to send OTP — just needs email and optional name."""
+    email: str
+    name: Optional[str] = ""
+
+class VerifyOTPRequest(BaseModel):
+    """Request to verify OTP entered by the user."""
+    email: str
+    otp: str
+
+class TokenOut(BaseModel):
+    """JWT token returned after successful login/verify."""
+    access_token: str
+    token_type: str = "bearer"
+    student_id: Optional[int] = None
+    role: str = "student"

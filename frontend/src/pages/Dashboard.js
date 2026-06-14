@@ -59,7 +59,7 @@ export default function Dashboard() {
       localStorage.setItem("studentEmail", emailInput);
       loadStudent(res.data.id);
     } catch {
-      setError("No student found with that email. Apply to an opportunity first!");
+      setError("No account found. Please sign in first.");
     }
   };
 
@@ -131,20 +131,6 @@ export default function Dashboard() {
                   View My Dashboard
                 </button>
               </form>
-              <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--gray-200)" }}>
-                <p style={{ color: "var(--gray-400)", fontSize: "0.82rem" }}>
-                  Demo account: <strong>arjun@student.com</strong>
-                </p>
-              </div>
-              <p style={{ marginTop: 16, fontSize: "0.875rem", color: "var(--gray-500)" }}>
-                Don't have applications yet?{" "}
-                <span
-                  onClick={() => navigate("/browse")}
-                  style={{ color: "var(--indigo)", cursor: "pointer", fontWeight: 600 }}
-                >
-                  Browse opportunities →
-                </span>
-              </p>
             </div>
           </div>
         </div>
