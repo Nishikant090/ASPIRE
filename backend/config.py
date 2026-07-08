@@ -9,7 +9,11 @@ env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(dotenv_path=env_path, override=True)
 
 # ── Database ───────────────────────────────────────────────────────
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./aspire.db")
+DATABASE_URL_ENV = os.getenv("DATABASE_URL", "sqlite:///./aspire.db")
+if DATABASE_URL_ENV.startswith("postgres://"):
+    DATABASE_URL_ENV = DATABASE_URL_ENV.replace("postgres://", "postgresql://", 1)
+DATABASE_URL = DATABASE_URL_ENV
+
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
 
 # ── Gmail SMTP ────────────────────────────────────────────────────
