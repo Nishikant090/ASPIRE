@@ -4,28 +4,25 @@
  */
 
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
-  getOpportunities, createOpportunity, updateOpportunity, deleteOpportunity,
-  getAllApplications, updateApplicationStatus, getStats, logout
+  getOpportunities,
+  createOpportunity,
+  updateOpportunity,
+  deleteOpportunity,
+  getAllApplications,
+  updateApplicationStatus,
+  getStats,
 } from "../api";
+import { useAuth } from "../context/AuthContext";
 import Toast from "../components/Toast";
 import { getResetLogs } from "../api/passwordReset";
 
-const TABS = ["overview", "opportunities", "applications", "companies", "reset-logs"];
-export default function Admin() {
-  const navigate = useNavigate();
+const TABS = ["overview", "opportunities", "applications", "reset-logs"];
+export default function Admin({ defaultTab = "overview" }) {
+  const { logout } = useAuth();
 
-  // Protect route: redirect to admin login if not authenticated as admin
-  useEffect(() => {
-    const role = localStorage.getItem("role");
-    const token = localStorage.getItem("token");
-    if (!token || role !== "admin") {
-      navigate("/admin/login");
-    }
-  }, [navigate]);
-
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState(defaultTab);
   const [opportunities, setOpportunities] = useState([]);
   const [applications, setApplications] = useState([]);
   const [stats, setStats] = useState(null);
@@ -136,17 +133,16 @@ export default function Admin() {
   const STATUS_OPTIONS = ["Applied", "Under Review", "Selected", "Rejected"];
 
   return (
-    <div className="page-wrapper">
-      {/* Page Header */}
-      <div className="page-header">
-        <div className="container">
-          <h1>⚙️ Admin Panel</h1>
-          <p>Manage opportunities and track all applications</p>
-        </div>
-      </div>
+    <div>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, fontSize: "1.4rem", marginBottom: 8 }}>
+        {defaultTab === "applications" ? "Application Management" : "Curated Opportunities"}
+      </h1>
+      <p style={{ color: "var(--gray-500)", marginBottom: 24 }}>
+        {defaultTab === "applications" ? "Review and update student applications" : "Manage admin-curated job listings"}
+      </p>
 
-      <div style={{ padding: "32px 0" }}>
-        <div className="container">
+      <div style={{ padding: 0 }}>
+        <div>
           {/* Tabs */}
           <div
             style={{
@@ -400,9 +396,9 @@ export default function Admin() {
   <div>
     <div className="section-header" style={{ marginBottom: 16 }}>
       <h2 className="section-title">Company Management</h2>
-      <a href="/admin/companies" className="btn btn-primary btn-sm">
+      <Link to="/admin/companies" className="btn btn-primary btn-sm">
         Open Full Company Panel →
-      </a>
+      </Link>
     </div>
     <p style={{ color: "var(--gray-500)" }}>
       Use the full company panel to approve registrations, manage companies, and review all company jobs.

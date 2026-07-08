@@ -1,25 +1,31 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { getCompanyDashboard, getCompanyProfile, getMyJobs, logoutCompany, isCompanyLoggedIn } from "../../api/company";
+import { getCompanyDashboard, getCompanyProfile, getMyJobs } from "../../api/company";
+import { useAuth } from "../../context/AuthContext";
 
 export default function CompanyDashboard() {
   const navigate = useNavigate();
-  const [stats,   setStats]   = useState(null);
+  const { logout } = useAuth();
+  const [stats, setStats] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [jobs,    setJobs]    = useState([]);
+  const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isCompanyLoggedIn()) { navigate("/company/login"); return; }
     Promise.all([getCompanyDashboard(), getCompanyProfile(), getMyJobs()])
       .then(([s, p, j]) => {
-        setStats(s.data); setProfile(p.data); setJobs(j.data);
+        setStats(s.data);
+        setProfile(p.data);
+        setJobs(j.data);
       })
-      .catch(() => { logoutCompany(); navigate("/company/login"); })
+      .catch(() => setStats(null))
       .finally(() => setLoading(false));
-  }, [navigate]);
+  }, []);
 
-  const handleLogout = () => { logoutCompany(); navigate("/company/login"); };
+  const handleLogout = async () => {
+    await logout();
+    navigate("/", { replace: true });
+  };
 
   if (loading) return (
     <div className="loading-wrapper" style={{ paddingTop: 120 }}>

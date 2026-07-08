@@ -2,10 +2,11 @@
 company_schemas.py - Pydantic schemas for Company Portal
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, model_validator, field_validator
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
+from password_reset_utils import validate_password
 
 
 class CompanyStatus(str, Enum):
@@ -35,6 +36,7 @@ class CompanyApplicationStatus(str, Enum):
     interview_scheduled = "Interview Scheduled"
     selected            = "Selected"
     rejected            = "Rejected"
+    withdrawn           = "Withdrawn"
 
 
 # ─── Company Schemas ──────────────────────────────────────────────────────────
@@ -42,18 +44,49 @@ class CompanyApplicationStatus(str, Enum):
 class CompanyRegister(BaseModel):
     """Required fields for company registration."""
     name        : str
-    email       : str
+    email       : EmailStr
     password    : str
+    confirm_password: str
     website     : Optional[str] = ""
     industry    : Optional[str] = ""
     description : Optional[str] = ""
     logo        : Optional[str] = "🏢"
     location    : Optional[str] = ""
+    hr_name     : Optional[str] = ""
+    hr_contact  : Optional[str] = ""
+    company_size: Optional[str] = ""
+
+    @model_validator(mode="after")
+    def validate_registration(self):
+        if self.password != self.confirm_password:
+            raise ValueError("Passwords do not match")
+        valid, message = validate_password(self.password)
+        if not valid:
+            raise ValueError(message)
+        return self
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        return value.strip().lower()
+
+
+class CompanyRegisterOut(BaseModel):
+    message: str
+    company_id: int
+    email: EmailStr
+    verification_required: bool = True
+    verification_expires_at: Optional[datetime] = None
 
 
 class CompanyLogin(BaseModel):
-    email    : str
+    email    : EmailStr
     password : str
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        return value.strip().lower()
 
 
 class CompanyOut(BaseModel):
@@ -115,8 +148,31 @@ class StudentBasic(BaseModel):
     name    : str
     email   : str
     college : str
+    full_name      : Optional[str] = None
+    personal_email : Optional[str] = None
+    college_name   : Optional[str] = None
     branch  : str
     skills  : Optional[str]
+
+    class Config:
+        from_attributes = True
+
+
+class JobSummary(BaseModel):
+    id              : int
+    company_id      : int
+    title           : str
+    description     : str
+    skills          : str
+    eligibility     : Optional[str]
+    salary          : str
+    location        : str
+    employment_type : EmploymentType
+    deadline        : Optional[str]
+    openings        : Optional[int]
+    status          : JobStatus
+    created_at      : datetime
+    company         : Optional[CompanyOut] = None
 
     class Config:
         from_attributes = True
@@ -129,6 +185,7 @@ class CompanyApplicationOut(BaseModel):
     cover_note  : Optional[str]
     resume_path : Optional[str]
     student     : StudentBasic
+    job         : Optional[JobSummary] = None
 
     class Config:
         from_attributes = True

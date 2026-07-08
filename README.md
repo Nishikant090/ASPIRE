@@ -51,7 +51,13 @@ aspire/
 
 ---
 
+### to view the database
+venv) PS C:\Users\nishi\OneDrive\Desktop\aspire\backend> python -c "import sqlite3; conn = sqlite3.connect('aspire.db'); cur = conn.cursor(); cur.execute('SELECT id, full_name, college_email, college_name, branch, status FROM students'); rows = cur.fetchall(); print(f'Found {len(rows)} student(s):'); [print(r) for r in rows]; conn.close()"
+>> 
 ## 🚀 Getting Started
+
+### start the virtual environment
+.\venv\Scripts\Activate.ps1
 
 ### 1. Start the Backend
 

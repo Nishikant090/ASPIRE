@@ -22,6 +22,7 @@ class PasswordResetToken(Base):
     otp_hash   = Column(String(500), nullable=False)   # bcrypt hash of OTP
     expires_at = Column(DateTime,    nullable=False)
     used       = Column(Boolean,     default=False)
+    attempts   = Column(Integer,      default=0)
     created_at = Column(DateTime,    default=datetime.utcnow)
 
 

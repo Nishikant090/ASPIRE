@@ -17,9 +17,10 @@ pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # Key = "email:email@x.com" or "ip:1.2.3.4"
 _rate_limit_store: dict = {}
 
-OTP_EXPIRE_MINUTES  = 10
-MAX_REQUESTS_EMAIL  = 5    # per hour per email
+OTP_EXPIRE_MINUTES  = 5
+MAX_REQUESTS_EMAIL  = 3    # per hour per email
 MAX_REQUESTS_IP     = 10   # per hour per IP
+MAX_OTP_ATTEMPTS    = 5
 
 
 # ─── OTP ──────────────────────────────────────────────────────────────────────
@@ -148,9 +149,8 @@ def create_reset_token(email: str, user_type: str, otp: str, db: Session) -> prm
 def get_valid_token(email: str, user_type: str, otp: str, db: Session):
     """
     Find and validate a reset token.
-    Returns token if valid, None otherwise.
+    Returns token if valid, None otherwise. Tracks failed attempts.
     """
-    # Get latest unused token for this email
     token = db.query(prm.PasswordResetToken).filter(
         prm.PasswordResetToken.email     == email,
         prm.PasswordResetToken.user_type == user_type,
@@ -161,7 +161,15 @@ def get_valid_token(email: str, user_type: str, otp: str, db: Session):
         return None
     if datetime.utcnow() > token.expires_at:
         return None
+    if token.attempts >= MAX_OTP_ATTEMPTS:
+        token.used = True
+        db.commit()
+        return None
     if not verify_otp_hash(otp, token.otp_hash):
+        token.attempts += 1
+        if token.attempts >= MAX_OTP_ATTEMPTS:
+            token.used = True
+        db.commit()
         return None
     return token
 

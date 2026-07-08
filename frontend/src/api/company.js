@@ -1,81 +1,77 @@
 /**
- * company.js - All API calls for Company Portal
+ * company.js - Company portal API calls
  */
 
-import axios from "axios";
+import { apiClient, persistAuth, readAuthState, logoutSession } from "./client";
 
-const API = axios.create({ baseURL: "http://localhost:8000" });
+const API = apiClient;
 
-// Attach company JWT token to every request
-API.interceptors.request.use((config) => {
-  const token = localStorage.getItem("companyToken");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+// ─── Auth ─────────────────────────────────────────────────────────────────────
 
-// ─── Auth ──────────────────────────────────────────────────────────────────
-export const registerCompany  = (data) => API.post("/company/register", data);
-export const loginCompany     = (data) => API.post("/company/login", data);
+export const registerCompany = (data) => API.post("/company/register", data);
+export const loginCompany = (data) => API.post("/company/login", data);
 
-// ─── Profile ───────────────────────────────────────────────────────────────
-export const getCompanyProfile    = ()     => API.get("/company/profile");
+// ─── Profile ──────────────────────────────────────────────────────────────────
+
+export const getCompanyProfile = () => API.get("/company/profile");
 export const updateCompanyProfile = (data) => API.put("/company/profile", data);
-export const getCompanyDashboard  = ()     => API.get("/company/dashboard");
+export const getCompanyDashboard = () => API.get("/company/dashboard");
 
-// ─── Jobs ──────────────────────────────────────────────────────────────────
-export const getMyJobs      = ()            => API.get("/company/jobs");
-export const createJob      = (data)        => API.post("/company/jobs", data);
-export const getJob         = (id)          => API.get(`/company/jobs/${id}`);
-export const updateJob      = (id, data)    => API.put(`/company/jobs/${id}`, data);
-export const deleteJob      = (id)          => API.delete(`/company/jobs/${id}`);
-export const toggleJobStatus = (id)         => API.patch(`/company/jobs/${id}/toggle`);
+// ─── Jobs ─────────────────────────────────────────────────────────────────────
 
-// ─── Applicants ────────────────────────────────────────────────────────────
-export const getApplicants        = (jobId, status) =>
+export const getMyJobs = () => API.get("/company/jobs");
+export const createJob = (data) => API.post("/company/jobs", data);
+export const getJob = (id) => API.get(`/company/jobs/${id}`);
+export const updateJob = (id, data) => API.put(`/company/jobs/${id}`, data);
+export const deleteJob = (id) => API.delete(`/company/jobs/${id}`);
+export const toggleJobStatus = (id) => API.patch(`/company/jobs/${id}/toggle`);
+
+// ─── Applicants ───────────────────────────────────────────────────────────────
+
+export const getApplicants = (jobId, status) =>
   API.get(`/company/jobs/${jobId}/applicants`, { params: { status } });
 export const updateApplicantStatus = (appId, status) =>
   API.put(`/company/applicants/${appId}/status`, { status });
+export const downloadApplicantResume = (appId) =>
+  API.get(`/company/applicants/${appId}/resume`, { responseType: "blob" });
 
-// ─── Public Jobs (for students) ────────────────────────────────────────────
-export const getCompanyJobs = (params) =>
-  axios.get("http://localhost:8000/company-jobs", { params });
-export const getCompanyJobDetail = (jobId) =>
-  axios.get(`http://localhost:8000/company-jobs/${jobId}`);
-export const applyToCompanyJob = (jobId, studentId, coverNote = "") =>
-  axios.post(`http://localhost:8000/company/jobs/${jobId}/apply`, null,
-    { params: { student_id: studentId, cover_note: coverNote } });
-export const uploadResume = (jobId, studentId, file) => {
+// ─── Student apply flow ───────────────────────────────────────────────────────
+
+export const applyToCompanyJob = (jobId, coverNote = "") =>
+  API.post(`/company/jobs/${jobId}/apply`, null, { params: { cover_note: coverNote } });
+
+export const uploadResume = (jobId, file) => {
   const formData = new FormData();
   formData.append("file", file);
-  return axios.post(`http://localhost:8000/company/jobs/${jobId}/upload-resume`,
-    formData,
-    { params: { student_id: studentId }, headers: { "Content-Type": "multipart/form-data" } });
+  return API.post(`/company/jobs/${jobId}/upload-resume`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
 };
 
-// ─── Admin ─────────────────────────────────────────────────────────────────
-const adminToken = () => localStorage.getItem("token");
-const adminHeaders = () => ({ Authorization: `Bearer ${adminToken()}` });
+export const withdrawCompanyApplication = (appId) =>
+  API.delete(`/company/applications/${appId}`);
 
-export const getAdminStats        = ()          =>
-  axios.get("http://localhost:8000/admin/stats", { headers: adminHeaders() });
-export const getAllCompanies       = ()          =>
-  axios.get("http://localhost:8000/admin/companies", { headers: adminHeaders() });
-export const updateCompanyStatus  = (id, status) =>
-  axios.put(`http://localhost:8000/admin/companies/${id}/status`, { status }, { headers: adminHeaders() });
-export const adminDeleteCompany   = (id)        =>
-  axios.delete(`http://localhost:8000/admin/companies/${id}`, { headers: adminHeaders() });
-export const getAllCompanyJobs     = ()          =>
-  axios.get("http://localhost:8000/admin/jobs", { headers: adminHeaders() });
+// ─── Admin (company management) ───────────────────────────────────────────────
 
-// ─── Token helpers ─────────────────────────────────────────────────────────
-export const saveCompanyToken = (token, companyId) => {
-  localStorage.setItem("companyToken",  token);
-  localStorage.setItem("companyId",     companyId);
-  localStorage.setItem("role",          "company");
+export const getAdminStats = () => API.get("/admin/stats");
+export const getAllCompanies = () => API.get("/admin/companies");
+export const updateCompanyStatus = (id, status) =>
+  API.put(`/admin/companies/${id}/status`, { status });
+export const adminDeleteCompany = (id) => API.delete(`/admin/companies/${id}`);
+export const getAllCompanyJobs = () => API.get("/admin/jobs");
+export const adminDeleteJob = (id) => API.delete(`/admin/jobs/${id}`);
+export const getAdminStudents = () => API.get("/admin/students");
+export const updateStudentStatus = (id, status) =>
+  API.put(`/admin/students/${id}/status`, null, { params: { status } });
+export const getAuditLogs = () => API.get("/admin/audit-logs");
+
+// ─── Token helpers ────────────────────────────────────────────────────────────
+
+export const saveCompanyToken = (token, companyId, email = "") => {
+  persistAuth({ token, role: "company", companyId, email });
 };
-export const isCompanyLoggedIn = () => !!localStorage.getItem("companyToken");
-export const logoutCompany     = () => {
-  localStorage.removeItem("companyToken");
-  localStorage.removeItem("companyId");
-  localStorage.removeItem("role");
-};
+
+export const isCompanyLoggedIn = () => readAuthState().role === "company";
+export const logoutCompany = logoutSession;
+
+export { readAuthState };

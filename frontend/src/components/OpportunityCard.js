@@ -9,7 +9,7 @@ export default function OpportunityCard({ opportunity }) {
   const navigate = useNavigate();
   
   // Detect if this is a company job (has company_id) or regular opportunity
-  const isCompanyJob = !!opportunity.company_id;
+  const isCompanyJob = opportunity.source === "company_job" || !!opportunity.company_id;
   
   // Handle both opportunity and company job data structures
   const type = opportunity.type || (opportunity.employment_type?.replace("_", " ") || "job");

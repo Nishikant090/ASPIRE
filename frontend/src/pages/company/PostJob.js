@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { createJob, updateJob, getJob, isCompanyLoggedIn } from "../../api/company";
+import { createJob, updateJob, getJob } from "../../api/company";
 import Toast from "../../components/Toast";
 
 const EMP_TYPES = [
@@ -25,17 +25,22 @@ export default function PostJob() {
   const [toast,   setToast]   = useState(null);
 
   useEffect(() => {
-    if (!isCompanyLoggedIn()) { navigate("/company/login"); return; }
     if (isEdit) {
-      getJob(id).then(r => setForm({
-        title: r.data.title, description: r.data.description,
-        skills: r.data.skills, salary: r.data.salary,
-        location: r.data.location, employment_type: r.data.employment_type,
-        eligibility: r.data.eligibility || "", deadline: r.data.deadline || "",
-        openings: r.data.openings || 1
-      }));
+      getJob(id).then((r) =>
+        setForm({
+          title: r.data.title,
+          description: r.data.description,
+          skills: r.data.skills,
+          salary: r.data.salary,
+          location: r.data.location,
+          employment_type: r.data.employment_type,
+          eligibility: r.data.eligibility || "",
+          deadline: r.data.deadline || "",
+          openings: r.data.openings || 1,
+        })
+      );
     }
-  }, [id, isEdit, navigate]);
+  }, [id, isEdit]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 

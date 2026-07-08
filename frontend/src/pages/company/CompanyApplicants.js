@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { getMyJobs, getApplicants, updateApplicantStatus, isCompanyLoggedIn } from "../../api/company";
+import { getMyJobs, getApplicants, updateApplicantStatus, downloadApplicantResume } from "../../api/company";
 import Toast from "../../components/Toast";
 
 const STATUSES = ["Applied","Under Review","Shortlisted","Interview Scheduled","Selected","Rejected"];
@@ -15,8 +14,7 @@ const STATUS_BADGE = {
 };
 
 export default function CompanyApplicants() {
-  const navigate = useNavigate();
-  const [jobs,        setJobs]        = useState([]);
+  const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState(null);
   const [applicants,  setApplicants]  = useState([]);
   const [loading,     setLoading]     = useState(false);
@@ -24,12 +22,11 @@ export default function CompanyApplicants() {
   const [filter,      setFilter]      = useState("");
 
   useEffect(() => {
-    if (!isCompanyLoggedIn()) { navigate("/company/login"); return; }
-    getMyJobs().then(r => {
+    getMyJobs().then((r) => {
       setJobs(r.data);
       if (r.data.length > 0) loadApplicants(r.data[0].id);
     });
-  }, [navigate]);
+  }, []);
 
   const loadApplicants = (jobId) => {
     setSelectedJob(jobId);
@@ -40,10 +37,24 @@ export default function CompanyApplicants() {
   const handleStatusChange = async (appId, newStatus) => {
     try {
       await updateApplicantStatus(appId, newStatus);
-      setApplicants(prev => prev.map(a => a.id === appId ? { ...a, status: newStatus } : a));
+      setApplicants((prev) => prev.map((a) => (a.id === appId ? { ...a, status: newStatus } : a)));
       setToast({ message: `Status updated to "${newStatus}"`, type: "success" });
     } catch {
       setToast({ message: "Failed to update status", type: "error" });
+    }
+  };
+
+  const handleDownloadResume = async (appId, studentName) => {
+    try {
+      const res = await downloadApplicantResume(appId);
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${studentName.replace(/\s+/g, "_")}_resume.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setToast({ message: "Resume not available", type: "error" });
     }
   };
 
@@ -117,7 +128,7 @@ export default function CompanyApplicants() {
                 <div className="table-wrapper">
                   <table>
                     <thead>
-                      <tr><th>Student</th><th>College</th><th>Skills</th><th>Applied</th><th>Status</th></tr>
+                      <tr><th>Student</th><th>College</th><th>Skills</th><th>Applied</th><th>Resume</th><th>Status</th></tr>
                     </thead>
                     <tbody>
                       {filtered.map(app => (
@@ -139,6 +150,19 @@ export default function CompanyApplicants() {
                           </td>
                           <td style={{ color: "var(--gray-400)", fontSize: "0.82rem" }}>
                             {new Date(app.applied_at).toLocaleDateString()}
+                          </td>
+                          <td>
+                            {app.resume_path ? (
+                              <button
+                                className="btn btn-ghost"
+                                style={{ fontSize: "0.78rem", padding: "4px 8px" }}
+                                onClick={() => handleDownloadResume(app.id, app.student.name)}
+                              >
+                                Download
+                              </button>
+                            ) : (
+                              <span style={{ color: "var(--gray-400)", fontSize: "0.78rem" }}>—</span>
+                            )}
                           </td>
                           <td>
                             <select className="form-select"

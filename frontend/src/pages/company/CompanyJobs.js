@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { getMyJobs, deleteJob, toggleJobStatus, isCompanyLoggedIn } from "../../api/company";
+import { getMyJobs, deleteJob, toggleJobStatus } from "../../api/company";
 import Toast from "../../components/Toast";
 
 export default function CompanyJobs() {
@@ -10,9 +10,8 @@ export default function CompanyJobs() {
   const [toast,   setToast]   = useState(null);
 
   useEffect(() => {
-    if (!isCompanyLoggedIn()) { navigate("/company/login"); return; }
-    getMyJobs().then(r => setJobs(r.data)).finally(() => setLoading(false));
-  }, [navigate]);
+    getMyJobs().then((r) => setJobs(r.data)).finally(() => setLoading(false));
+  }, []);
 
   const handleDelete = async (id, title) => {
     if (!window.confirm(`Delete "${title}"?`)) return;

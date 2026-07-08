@@ -2,16 +2,15 @@
 # Handles: OTP verification, application received, selected, rejected
 
 import smtplib
-import random
-import string
+import secrets
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from config import GMAIL_USER, GMAIL_PASSWORD
 
 
 def generate_otp():
-    """Generate a random 6-digit OTP."""
-    return ''.join(random.choices(string.digits, k=6))
+    """Generate a cryptographically secure 6-digit OTP."""
+    return str(secrets.randbelow(900000) + 100000)
 
 
 def send_email(to_email: str, subject: str, html_body: str):
@@ -63,6 +62,22 @@ def send_application_received_email(to_email: str, student_name: str, job_title:
       <p>Your application for <strong>{job_title}</strong> at <strong>{company}</strong> has been received.</p>
       <p style="background: #EEF2FF; padding: 16px; border-radius: 8px; color: #4F46E5;">
         We'll notify you as your application status changes. Good luck!
+      </p>
+      <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 24px;">— Team Aspire</p>
+    </div>
+    """
+    return send_email(to_email, subject, body)
+
+
+def send_verification_complete_email(to_email: str, name: str):
+    """Notify user that email verification is complete and the account is active."""
+    subject = "🎉 Your Aspire account is verified!"
+    body = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
+      <h2 style="color: #0F1B2D;">Welcome to Aspire, {name}!</h2>
+      <p>Your email has been verified and your account is now active.</p>
+      <p style="background: #EEF2FF; padding: 16px; border-radius: 8px; color: #4F46E5;">
+        Log in anytime with your email and password. You will not need to verify again unless you change your email address.
       </p>
       <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 24px;">— Team Aspire</p>
     </div>

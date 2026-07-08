@@ -37,6 +37,7 @@ class CompanyApplicationStatus(str, enum.Enum):
     interview_scheduled = "Interview Scheduled"
     selected           = "Selected"
     rejected           = "Rejected"
+    withdrawn          = "Withdrawn"
 
 
 class Company(Base):
@@ -45,15 +46,22 @@ class Company(Base):
 
     id               = Column(Integer, primary_key=True, index=True)
     name             = Column(String(200), nullable=False)
-    email            = Column(String(200), unique=True, nullable=False)
+    email            = Column(String(200), unique=True, nullable=False, index=True)
     password_hash    = Column(String(500), nullable=False)
-    website          = Column(String(300), nullable=True)      # optional
-    industry         = Column(String(100), nullable=True)      # optional
-    description      = Column(Text, nullable=True)             # optional
+    website          = Column(String(300), nullable=True)
+    industry         = Column(String(100), nullable=True)
+    description      = Column(Text, nullable=True)
     logo             = Column(String(10), nullable=True, default="🏢")
-    location         = Column(String(200), nullable=True)      # optional
-    status           = Column(Enum(CompanyStatus), default=CompanyStatus.pending)
-    created_at       = Column(DateTime, default=datetime.utcnow)
+    location         = Column(String(200), nullable=True)
+    hr_name          = Column(String(200), nullable=False)
+    hr_contact       = Column(String(50), nullable=False)
+    company_size     = Column(String(50), nullable=True)
+    is_email_verified= Column(Boolean, default=False, nullable=False)
+    status           = Column(Enum(CompanyStatus), default=CompanyStatus.pending, nullable=False)
+    verification_expires_at = Column(DateTime, nullable=True)
+    failed_login_attempts = Column(Integer, default=0, nullable=False)
+    locked_until = Column(DateTime, nullable=True)
+    created_at       = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
     jobs             = relationship("CompanyJob", back_populates="company", cascade="all, delete-orphan")
@@ -96,4 +104,4 @@ class CompanyApplication(Base):
 
     # Relationships
     job             = relationship("CompanyJob", back_populates="applications")
-    student         = relationship("Student")
+    student         = relationship("Student", back_populates="company_applications")

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { getAllCompanies, updateCompanyStatus, adminDeleteCompany } from "../../api/company";
 import Toast from "../../components/Toast";
+import LoadingSkeleton from "../../components/LoadingSkeleton";
 
 const STATUS_COLORS = {
   pending   : "badge-under-review",
@@ -11,16 +12,17 @@ const STATUS_COLORS = {
 };
 
 export default function AdminCompanies() {
-  const navigate = useNavigate();
   const [companies, setCompanies] = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [toast,     setToast]     = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [toast, setToast] = useState(null);
 
   useEffect(() => {
-    const role = localStorage.getItem("role");
-    if (role !== "admin") { navigate("/admin/login"); return; }
-    getAllCompanies().then(r => setCompanies(r.data)).finally(() => setLoading(false));
-  }, [navigate]);
+    getAllCompanies()
+      .then((r) => setCompanies(r.data))
+      .catch(() => setError("Failed to load companies."))
+      .finally(() => setLoading(false));
+  }, []);
 
   const handleStatus = async (id, status) => {
     await updateCompanyStatus(id, status);

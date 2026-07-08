@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { registerCompany } from "../../api/company";
+import { getApiErrorMessage, parseApiDetail } from "../../api/errors";
+import { useToast } from "../../context/ToastContext";
 
 const LOGOS = ["🏢","🚀","💡","⚡","🎨","☁️","🤖","📱","🔬","🌐","💻","📊"];
 
 export default function CompanyRegister() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [form, setForm] = useState({
-    name: "", email: "", password: "", website: "",
+    name: "", email: "", password: "", confirm_password: "", website: "",
     industry: "", description: "", logo: "🏢", location: ""
   });
   const [loading, setLoading] = useState(false);
@@ -17,12 +20,37 @@ export default function CompanyRegister() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true); setError("");
+    setLoading(true);
+    setError("");
+
+    if (form.password !== form.confirm_password) {
+      const message = "Passwords do not match.";
+      setError(message);
+      showToast(message, "error");
+      setLoading(false);
+      return;
+    }
+
     try {
-      await registerCompany(form);
-      navigate("/company/login?registered=true");
+      const res = await registerCompany(form);
+      navigate(`/verify-company-email/${res.data.company_id}`, {
+        replace: true,
+        state: { email: res.data.email, message: res.data.message },
+      });
     } catch (err) {
-      setError(err.response?.data?.detail || "Registration failed");
+      const detail = parseApiDetail(err.response?.data?.detail);
+      if (detail.code === "VERIFICATION_PENDING" && detail.company_id) {
+        showToast(detail.message || "Finish email verification to activate your account.", "error");
+        navigate(`/verify-company-email/${detail.company_id}`, {
+          replace: true,
+          state: { email: form.email },
+        });
+        return;
+      }
+
+      const message = getApiErrorMessage(err, "Registration failed. Please try again.");
+      setError(message);
+      showToast(message, "error");
     } finally { setLoading(false); }
   };
 
@@ -72,8 +100,13 @@ export default function CompanyRegister() {
 
               <div className="form-group">
                 <label className="form-label">Password *</label>
-                <input type="password" className="form-input" placeholder="Create a strong password"
+                <input type="password" className="form-input" placeholder="Min 8 chars, upper, lower, number, symbol"
                   value={form.password} required onChange={e => set("password", e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Confirm Password *</label>
+                <input type="password" className="form-input" placeholder="Re-enter password"
+                  value={form.confirm_password} required onChange={e => set("confirm_password", e.target.value)} />
               </div>
 
               {/* Optional fields */}
@@ -137,7 +170,7 @@ export default function CompanyRegister() {
 
             <div style={{ marginTop: 16, padding: 14, background: "var(--amber-light)",
               borderRadius: "var(--radius-sm)", fontSize: "0.82rem", color: "#92400E" }}>
-              ⚠️ After registration, your account will be reviewed by the admin before you can post jobs.
+              ⚠️ Verify your email after registration. Admin approval is required before you can post jobs.
             </div>
           </div>
         </div>

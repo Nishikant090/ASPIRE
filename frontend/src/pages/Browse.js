@@ -1,77 +1,75 @@
 /**
- * Browse.js - Browse all jobs and internships
- * Features: search, type filters, company filter, grid display
+ * Browse.js - Unified job browse with search and filters
  */
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { getOpportunities, getCompanyJobs } from "../api";
+import { getUnifiedJobs } from "../api";
 import OpportunityCard from "../components/OpportunityCard";
 
 export default function Browse() {
-  const [searchParams] = useSearchParams();
-  const [opportunities, setOpportunities] = useState([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(searchParams.get("search") || "");
-  const [activeType, setActiveType] = useState("all");
+  const [activeType, setActiveType] = useState(searchParams.get("type") || "all");
   const [companies, setCompanies] = useState([]);
-  const [selectedCompany, setSelectedCompany] = useState("");
+  const [selectedCompany, setSelectedCompany] = useState(searchParams.get("company") || "");
 
-  // Fetch opportunities and company jobs whenever filters change
-  const fetchOpportunities = (params = {}) => {
+  const fetchJobs = (params = {}) => {
     setLoading(true);
-    Promise.all([
-      getOpportunities(params),
-      getCompanyJobs(params)
-    ])
-      .then(([oppRes, companyRes]) => {
-        // Merge both opportunities and company jobs
-        const allOpps = [...(oppRes.data || []), ...(companyRes.data || [])];
-        setOpportunities(allOpps);
-        // Extract unique companies for the dropdown
-        const companyNames = allOpps.map((o) => {
-          if (o.company) return typeof o.company === 'string' ? o.company : o.company.name;
-          return o.company_name || "Unknown";
-        });
-        const unique = [...new Set(companyNames)].sort();
+    getUnifiedJobs(params)
+      .then((res) => {
+        const allJobs = res.data || [];
+        setJobs(allJobs);
+        const unique = [...new Set(allJobs.map((j) => j.company_name))].sort();
         setCompanies(unique);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
   };
 
-  // Initial load with URL search param
   useEffect(() => {
-    fetchOpportunities({ search: searchParams.get("search") || "" });
-  }, []);
+    const params = {};
+    const q = searchParams.get("search");
+    const type = searchParams.get("type");
+    const company = searchParams.get("company");
+    if (q) params.search = q;
+    if (type && type !== "all") params.type = type;
+    if (company) params.company = company;
+    fetchJobs(params);
+  }, [searchParams]);
+
+  const applyFilters = (overrides = {}) => {
+    const params = {
+      search: overrides.search ?? search,
+      type: overrides.type ?? activeType,
+      company: overrides.company ?? selectedCompany,
+    };
+    const query = {};
+    if (params.search) query.search = params.search;
+    if (params.type && params.type !== "all") query.type = params.type;
+    if (params.company) query.company = params.company;
+    setSearchParams(query);
+  };
 
   const handleSearch = (e) => {
     e.preventDefault();
-    const params = { search };
-    if (activeType !== "all") params.type = activeType;
-    if (selectedCompany) params.company = selectedCompany;
-    fetchOpportunities(params);
+    applyFilters({ search });
   };
 
   const handleTypeFilter = (type) => {
     setActiveType(type);
-    const params = { search };
-    if (type !== "all") params.type = type;
-    if (selectedCompany) params.company = selectedCompany;
-    fetchOpportunities(params);
+    applyFilters({ type });
   };
 
   const handleCompanyFilter = (company) => {
     setSelectedCompany(company);
-    const params = { search };
-    if (activeType !== "all") params.type = activeType;
-    if (company) params.company = company;
-    fetchOpportunities(params);
+    applyFilters({ company });
   };
 
   return (
     <div className="page-wrapper">
-      {/* Page Header */}
       <div className="page-header">
         <div className="container">
           <h1>Browse Opportunities</h1>
@@ -81,18 +79,10 @@ export default function Browse() {
 
       <div className="section" style={{ paddingTop: 32 }}>
         <div className="container">
-          {/* Search & Filters */}
-          <div
-            style={{
-              background: "white",
-              borderRadius: "var(--radius-lg)",
-              padding: 24,
-              border: "1px solid var(--gray-200)",
-              marginBottom: 28,
-              boxShadow: "var(--shadow-sm)",
-            }}
-          >
-            {/* Search bar */}
+          <div style={{
+            background: "white", borderRadius: "var(--radius-lg)", padding: 24,
+            border: "1px solid var(--gray-200)", marginBottom: 28, boxShadow: "var(--shadow-sm)",
+          }}>
             <form onSubmit={handleSearch} style={{ marginBottom: 20 }}>
               <div className="search-bar">
                 <span style={{ paddingLeft: 18, color: "#94A3B8" }}>🔍</span>
@@ -106,17 +96,7 @@ export default function Browse() {
               </div>
             </form>
 
-            {/* Filters row */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-                gap: 12,
-              }}
-            >
-              {/* Type filter */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
               <div className="filter-bar">
                 <span style={{ fontSize: "0.83rem", color: "var(--gray-500)", fontWeight: 600 }}>Type:</span>
                 {["all", "job", "internship"].map((type) => (
@@ -129,8 +109,6 @@ export default function Browse() {
                   </button>
                 ))}
               </div>
-
-              {/* Company filter */}
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: "0.83rem", color: "var(--gray-500)", fontWeight: 600 }}>Company:</span>
                 <select
@@ -148,38 +126,27 @@ export default function Browse() {
             </div>
           </div>
 
-          {/* Results count */}
           <div style={{ marginBottom: 20, color: "var(--gray-500)", fontSize: "0.875rem" }}>
             {!loading && (
-              <span>
-                Showing <strong style={{ color: "var(--gray-800)" }}>{opportunities.length}</strong> opportunities
-              </span>
+              <span>Showing <strong style={{ color: "var(--gray-800)" }}>{jobs.length}</strong> opportunities</span>
             )}
           </div>
 
-          {/* Opportunities Grid */}
           {loading ? (
             <div className="loading-wrapper">
               <div className="spinner" />
               <p style={{ color: "var(--gray-400)" }}>Finding opportunities...</p>
             </div>
-          ) : opportunities.length === 0 ? (
+          ) : jobs.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">🔍</div>
               <h3>No opportunities found</h3>
-              <p>Try adjusting your search or filters to find what you're looking for.</p>
+              <p>Try adjusting your search or filters.</p>
             </div>
           ) : (
-            <div
-              className="opp-grid"
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-                gap: 20,
-              }}
-            >
-              {opportunities.map((opp) => (
-                <OpportunityCard key={opp.id} opportunity={opp} />
+            <div className="opp-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 20 }}>
+              {jobs.map((job) => (
+                <OpportunityCard key={job.unique_key || `${job.source}-${job.id}`} opportunity={job} />
               ))}
             </div>
           )}

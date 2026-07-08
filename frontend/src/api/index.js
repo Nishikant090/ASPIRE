@@ -1,124 +1,108 @@
 /**
- * api/index.js - Axios API service
- * All API calls to the FastAPI backend are centralized here.
+ * api/index.js - Student & admin API service
  */
 
-import axios from "axios";
+import { apiClient, persistAuth, readAuthState, clearAuthStorage, logoutSession } from "./client";
 
-// Base URL for the FastAPI backend
-const API = axios.create({
-  baseURL: "http://localhost:8000",
-  headers: { "Content-Type": "application/json" },
-});
+const API = apiClient;
 
-// Automatically attach JWT token to every request if one exists
-API.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// ─── Unified Jobs (single source of truth) ──────────────────────────────────
 
-// ─── Opportunities ────────────────────────────────────────────────────────────
+export const getUnifiedJobs = (params = {}) => API.get("/jobs", { params });
+export const getFeaturedJobs = () => API.get("/jobs/featured");
+export const getRecommendedJobs = () => API.get("/jobs/recommended");
 
-/** Fetch all opportunities with optional filters */
-export const getOpportunities = (params = {}) =>
-  API.get("/opportunities", { params });
+// ─── Opportunities (admin-curated, legacy) ────────────────────────────────────
 
-/** Fetch 6 featured opportunities for home page */
-export const getFeaturedOpportunities = () =>
-  API.get("/opportunities/featured");
-
-/** Get a single opportunity by ID */
+export const getOpportunities = (params = {}) => API.get("/opportunities", { params });
+export const getFeaturedOpportunities = () => API.get("/opportunities/featured");
 export const getOpportunity = (id) => API.get(`/opportunities/${id}`);
-
-/** Admin: Create a new opportunity */
+export const getOpportunityApplicationStatus = (id) =>
+  API.get(`/opportunities/${id}/application-status`);
 export const createOpportunity = (data) => API.post("/opportunities", data);
-
-/** Admin: Update an existing opportunity */
-export const updateOpportunity = (id, data) =>
-  API.put(`/opportunities/${id}`, data);
-
-/** Admin: Delete an opportunity */
+export const updateOpportunity = (id, data) => API.put(`/opportunities/${id}`, data);
 export const deleteOpportunity = (id) => API.delete(`/opportunities/${id}`);
 
-// ─── Company Jobs ─────────────────────────────────────────────────────────────
+// ─── Company Jobs (public) ──────────────────────────────────────────────────
 
-/** Fetch all active company jobs with optional filters */
-export const getCompanyJobs = (params = {}) =>
-  API.get("/company-jobs", { params });
+export const getCompanyJobs = (params = {}) => API.get("/company-jobs", { params });
+export const getCompanyJobDetail = (jobId) => API.get(`/company-jobs/${jobId}`);
+export const getCompanyJobApplicationStatus = (jobId) =>
+  API.get(`/company-jobs/${jobId}/application-status`);
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
-/** Get platform statistics */
 export const getStats = () => API.get("/stats");
 
 // ─── Students ─────────────────────────────────────────────────────────────────
 
-/** Register a new student */
 export const createStudent = (data) => API.post("/students", data);
-
-/** Get student by ID */
 export const getStudent = (id) => API.get(`/students/${id}`);
-
-/** Find student by email */
-export const getStudentByEmail = (email) =>
-  API.get(`/students/email/${email}`);
+export const getStudentMe = () => API.get("/students/me");
+export const getStudentByEmail = (email) => API.get(`/students/email/${email}`);
 
 // ─── Applications ─────────────────────────────────────────────────────────────
 
-/** Submit an application */
 export const applyToOpportunity = (data) => API.post("/applications", data);
-
-/** Get all applications for a student */
 export const getStudentApplications = (studentId) =>
   API.get(`/applications/student/${studentId}`);
+export const getMyApplications = () => API.get("/students/me/applications");
 
-/** Admin: Get all applications */
+// ─── Saved Jobs ───────────────────────────────────────────────────────────────
+
+export const getSavedJobs = () => API.get("/students/me/saved-jobs");
+export const saveJob = (jobSource, jobId) =>
+  API.post("/students/me/saved-jobs", { job_source: jobSource, job_id: jobId });
+export const unsaveJob = (savedId) => API.delete(`/students/me/saved-jobs/${savedId}`);
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+export const getNotifications = () => API.get("/notifications/me");
+export const getUnreadCount = () => API.get("/notifications/unread-count");
+export const markNotificationRead = (id) => API.put(`/notifications/${id}/read`);
+export const markAllNotificationsRead = () => API.put("/notifications/read-all");
+export const getMyOpportunityApplications = () => API.get("/applications/me");
+export const withdrawOpportunityApplication = (appId) =>
+  API.delete(`/applications/${appId}`);
 export const getAllApplications = () => API.get("/applications");
-
-/** Admin: Update application status */
 export const updateApplicationStatus = (appId, status) =>
   API.put(`/applications/${appId}/status`, { status });
 
-// ─── Auth ──────────────────────────────────────────────────────────────────────
+// ─── Auth ─────────────────────────────────────────────────────────────────────
 
-/** Step 1: Request OTP — works for both login and signup */
-export const sendOTP = (email, name = "") =>
-  API.post("/auth/send-otp", { email, name });
-
-/** Step 2: Verify OTP — returns JWT token + student_id */
-export const verifyOTP = (email, otp) =>
-  API.post("/auth/verify-otp", { email, otp });
-
-/** Admin login */
-// Note: backend reuses SendOTPRequest — email = admin email, name = password
+export const registerStudent = (data) => API.post("/auth/register", data);
+export const getVerificationStatus = (studentId) => API.get(`/auth/verification-status/${studentId}`);
+export const sendVerificationOTP = (email) =>
+  API.post("/auth/verify-email/send", { email });
+export const confirmVerificationOTP = (email, otp) =>
+  API.post("/auth/verify-email/confirm", { email, otp });
+export const getCompanyVerificationStatus = (companyId) =>
+  API.get(`/auth/company/verification-status/${companyId}`);
+export const sendCompanyVerificationOTP = (email) =>
+  API.post("/auth/company/verify-email/send", { email });
+export const confirmCompanyVerificationOTP = (email, otp) =>
+  API.post("/auth/company/verify-email/confirm", { email, otp });
+export const studentLogin = (collegeEmail, password) =>
+  API.post("/auth/student/login", { college_email: collegeEmail, password });
+export const getAuthMe = () => API.get("/auth/me");
 export const adminLogin = (email, password) =>
   API.post("/auth/admin-login", { email, name: password });
+export const refreshToken = () => API.post("/auth/refresh");
+export const logout = logoutSession;
 
-// ─── Token helpers ─────────────────────────────────────────────────────────────
-
-/** Save JWT token and student info to localStorage after login */
-export const saveAuthToken = (token, studentId, role = "student") => {
-  localStorage.setItem("token", token);
-  localStorage.setItem("role", role);
-  if (studentId) localStorage.setItem("studentId", studentId);
+/** Save JWT token after login (also used by AuthContext.login) */
+export const saveAuthToken = (token, studentId, role = "student", email = "") => {
+  persistAuth({
+    token,
+    role,
+    studentId: studentId ?? undefined,
+    email: email || readAuthState().email,
+  });
 };
 
-/** Read the saved JWT token */
-export const getToken = () => localStorage.getItem("token");
+export const getToken = () => readAuthState().token;
+export const isLoggedIn = () => Boolean(readAuthState().token);
+export const isAdmin = () => readAuthState().role === "admin";
+export const isStudent = () => readAuthState().role === "student";
 
-/** Check if any user is logged in */
-export const isLoggedIn = () => !!localStorage.getItem("token");
-
-/** Check if logged-in user is admin */
-export const isAdmin = () => localStorage.getItem("role") === "admin";
-
-/** Log out: clear all auth data */
-export const logout = () => {
-  localStorage.removeItem("token");
-  localStorage.removeItem("role");
-  localStorage.removeItem("studentId");
-  localStorage.removeItem("studentEmail");
-};
+export { clearAuthStorage, readAuthState, persistAuth };

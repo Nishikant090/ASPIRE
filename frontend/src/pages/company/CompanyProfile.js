@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getCompanyProfile, updateCompanyProfile, isCompanyLoggedIn } from "../../api/company";
+import { getCompanyProfile, updateCompanyProfile } from "../../api/company";
 import Toast from "../../components/Toast";
 
 const LOGOS = ["🏢","🚀","💡","⚡","🎨","☁️","🤖","📱","🔬","🌐","💻","📊"];
@@ -13,13 +13,19 @@ export default function CompanyProfile() {
   const [toast,   setToast]   = useState(null);
 
   useEffect(() => {
-    if (!isCompanyLoggedIn()) { navigate("/company/login"); return; }
-    getCompanyProfile().then(r => setForm({
-      name: r.data.name, website: r.data.website || "",
-      industry: r.data.industry || "", description: r.data.description || "",
-      logo: r.data.logo || "🏢", location: r.data.location || ""
-    })).finally(() => setLoading(false));
-  }, [navigate]);
+    getCompanyProfile()
+      .then((r) =>
+        setForm({
+          name: r.data.name,
+          website: r.data.website || "",
+          industry: r.data.industry || "",
+          description: r.data.description || "",
+          logo: r.data.logo || "🏢",
+          location: r.data.location || "",
+        })
+      )
+      .finally(() => setLoading(false));
+  }, []);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 

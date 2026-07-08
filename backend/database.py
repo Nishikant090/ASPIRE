@@ -6,14 +6,15 @@ Sets up SQLite connection and session factory
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from config import DATABASE_URL
 
-# SQLite database file stored locally
-DATABASE_URL = "sqlite:///./aspire.db"
+# For SQLite we need check_same_thread=False. PostgreSQL and other databases don't.
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 
-# Create the engine (connect_args needed for SQLite + FastAPI threading)
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False}
+    connect_args=connect_args,
+    future=True,
 )
 
 # Session factory - used to create DB sessions per request

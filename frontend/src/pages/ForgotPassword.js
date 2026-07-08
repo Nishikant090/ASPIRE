@@ -1,19 +1,19 @@
 /**
- * ForgotPassword.js - Forgot password page for both Student and Company
- * Usage:
- *   <ForgotPassword userType="student" />
- *   <ForgotPassword userType="company" />
+ * ForgotPassword.js - Secure forgot password (account must exist)
  */
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { studentForgotPassword, companyForgotPassword } from "../api/passwordReset";
+import { getApiErrorMessage } from "../api/errors";
+import { useToast } from "../context/ToastContext";
 
 export default function ForgotPassword({ userType = "student" }) {
-  const [email,   setEmail]   = useState("");
-  const [sent,    setSent]    = useState(false);
+  const { showToast } = useToast();
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState("");
+  const [error, setError] = useState("");
 
   const isStudent = userType === "student";
   const loginPath = isStudent ? "/login" : "/company/login";
@@ -21,7 +21,8 @@ export default function ForgotPassword({ userType = "student" }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true); setError("");
+    setLoading(true);
+    setError("");
     try {
       if (isStudent) {
         await studentForgotPassword(email);
@@ -30,12 +31,12 @@ export default function ForgotPassword({ userType = "student" }) {
       }
       setSent(true);
     } catch (err) {
-      // Only show rate limit errors — never reveal email existence
-      if (err.response?.status === 429) {
-        setError(err.response.data.detail);
-      } else {
-        setSent(true); // Always show "sent" to avoid email enumeration
-      }
+      const message = getApiErrorMessage(
+        err,
+        "Account not found. Please check your email or register first."
+      );
+      setError(message);
+      showToast(message, "error");
     } finally {
       setLoading(false);
     }
@@ -46,8 +47,6 @@ export default function ForgotPassword({ userType = "student" }) {
       <div className="section" style={{ paddingTop: 80 }}>
         <div className="container" style={{ maxWidth: 440 }}>
           <div className="card" style={{ padding: 40 }}>
-
-            {/* Icon */}
             <div style={{ textAlign: "center", marginBottom: 28 }}>
               <div style={{
                 width: 64, height: 64,
@@ -58,18 +57,14 @@ export default function ForgotPassword({ userType = "student" }) {
               }}>
                 🔐
               </div>
-              <h1 style={{
-                fontFamily: "'Plus Jakarta Sans',sans-serif",
-                fontSize: "1.4rem", fontWeight: 800, color: "var(--gray-900)"
-              }}>
+              <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: "1.4rem", fontWeight: 800, color: "var(--gray-900)" }}>
                 Forgot Password?
               </h1>
               <p style={{ color: "var(--gray-500)", fontSize: "0.9rem", marginTop: 8 }}>
-                {isStudent ? "Student account" : "Company account"} password reset
+                {isStudent ? "Enter your registered college email" : "Enter your company email"}
               </p>
             </div>
 
-            {/* Success state */}
             {sent ? (
               <div>
                 <div style={{
@@ -78,63 +73,39 @@ export default function ForgotPassword({ userType = "student" }) {
                   textAlign: "center", marginBottom: 24
                 }}>
                   <div style={{ fontSize: "2rem", marginBottom: 8 }}>📧</div>
-                  <p style={{ color: "#065F46", fontWeight: 600, marginBottom: 4 }}>
-                    Check your inbox!
-                  </p>
+                  <p style={{ color: "#065F46", fontWeight: 600, marginBottom: 4 }}>Check your inbox!</p>
                   <p style={{ color: "#047857", fontSize: "0.875rem" }}>
-                    If an account exists for <strong>{email}</strong>,
-                    a 6-digit OTP has been sent.
+                    A 6-digit OTP has been sent to your registered {isStudent ? "college" : ""} email.
                   </p>
                 </div>
-                <Link
-                  to={`${resetPath}?email=${encodeURIComponent(email)}`}
-                  className="btn btn-primary btn-full"
-                >
+                <Link to={`${resetPath}?email=${encodeURIComponent(email)}`} className="btn btn-primary btn-full">
                   Enter OTP & Reset Password →
                 </Link>
-                <button
-                  className="btn btn-ghost btn-full"
-                  style={{ marginTop: 10 }}
-                  onClick={() => { setSent(false); setEmail(""); }}
-                >
+                <button className="btn btn-ghost btn-full" style={{ marginTop: 10 }} onClick={() => { setSent(false); setEmail(""); }}>
                   Try different email
                 </button>
               </div>
             ) : (
-              /* Email form */
               <form onSubmit={handleSubmit}>
-                {error && (
-                  <div style={{
-                    background: "var(--rose-light)", border: "1px solid #FECDD3",
-                    borderRadius: "var(--radius-sm)", padding: "12px 16px",
-                    color: "var(--rose)", fontSize: "0.875rem", marginBottom: 20
-                  }}>
-                    ❌ {error}
-                  </div>
-                )}
-
+                {error && <div className="alert alert-error">{error}</div>}
                 <div className="form-group">
-                  <label className="form-label">Email Address *</label>
+                  <label className="form-label">{isStudent ? "College Email ID" : "Email Address"} *</label>
                   <input
                     type="email" className="form-input"
                     placeholder={isStudent ? "you@college.edu" : "hr@company.com"}
                     value={email} required
-                    onChange={e => setEmail(e.target.value)}
+                    onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
-
                 <button type="submit" className="btn btn-primary btn-full btn-lg" disabled={loading}>
                   {loading ? "Sending OTP..." : "Send Reset OTP →"}
                 </button>
               </form>
             )}
 
-            {/* Back to login */}
             <p style={{ textAlign: "center", marginTop: 20, fontSize: "0.875rem", color: "var(--gray-500)" }}>
               Remember your password?{" "}
-              <Link to={loginPath} style={{ color: "var(--indigo)", fontWeight: 600 }}>
-                Back to Login
-              </Link>
+              <Link to={loginPath} style={{ color: "var(--indigo)", fontWeight: 600 }}>Back to Login</Link>
             </p>
           </div>
         </div>

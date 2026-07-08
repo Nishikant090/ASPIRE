@@ -3,7 +3,7 @@ admin_routes.py - Admin super dashboard routes
 Mounted on /admin prefix in main.py
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -12,9 +12,39 @@ from auth import require_admin
 import company_models as cm
 import company_schemas as cs
 import models
+import auth_models as am
 from company_email import send_company_approval_email
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
+
+
+def _student_to_admin_dict(student: models.Student) -> dict:
+    return {
+        "id": student.id,
+        "full_name": student.full_name,
+        "username": student.username,
+        "personal_email": student.personal_email,
+        "college_email": student.college_email,
+        "college_name": student.college_name,
+        "branch": student.branch or "",
+        "year": student.year or "",
+        "semester": student.semester or "",
+        "graduation_year": student.graduation_year or "",
+        "roll_number": student.roll_number or "",
+        "skills": student.skills or "",
+        "linkedin_url": student.linkedin_url or "",
+        "github_url": student.github_url or "",
+        "portfolio_url": student.portfolio_url or "",
+        "resume_path": student.resume_path or "",
+        "profile_picture": student.profile_picture or "",
+        "tnp_head_name": student.tnp_head_name,
+        "tnp_head_phone": student.tnp_head_phone,
+        "is_email_verified": student.is_email_verified,
+        "is_college_email_verified": student.is_college_email_verified,
+        "is_active": student.is_active,
+        "status": student.status.value,
+        "created_at": student.created_at,
+    }
 
 
 # ─── Platform Stats ───────────────────────────────────────────────────────────
@@ -117,3 +147,52 @@ def list_all_company_applications(db: Session = Depends(get_db), _=Depends(requi
     return db.query(cm.CompanyApplication).order_by(
         cm.CompanyApplication.applied_at.desc()
     ).all()
+
+
+# ─── Student Management ───────────────────────────────────────────────────────
+
+@router.get("/students", tags=["Admin"])
+def list_students(db: Session = Depends(get_db), _=Depends(require_admin)):
+    students = db.query(models.Student).order_by(models.Student.created_at.desc()).all()
+    return [_student_to_admin_dict(s) for s in students]
+
+
+@router.put("/students/{student_id}/status", tags=["Admin"])
+def update_student_status(
+    student_id: int,
+    status: str = Query(...),
+    db: Session = Depends(get_db),
+    _=Depends(require_admin),
+):
+    student = db.query(models.Student).filter(models.Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    if status not in ("active", "blocked", "pending"):
+        raise HTTPException(status_code=422, detail="Invalid status")
+    student.status = models.StudentStatus(status)
+    if status == "blocked":
+        student.is_active = False
+    elif status == "active":
+        student.is_active = True
+    db.commit()
+    return {"message": f"Student status updated to {status}"}
+
+
+# ─── Audit Logs ───────────────────────────────────────────────────────────────
+
+@router.get("/audit-logs", tags=["Admin"])
+def get_audit_logs(db: Session = Depends(get_db), _=Depends(require_admin)):
+    logs = db.query(am.AuditLog).order_by(am.AuditLog.created_at.desc()).limit(200).all()
+    return [
+        {
+            "id": l.id,
+            "actor_type": l.actor_type,
+            "actor_email": l.actor_email,
+            "action": l.action,
+            "resource_type": l.resource_type,
+            "resource_id": l.resource_id,
+            "details": l.details,
+            "created_at": l.created_at,
+        }
+        for l in logs
+    ]

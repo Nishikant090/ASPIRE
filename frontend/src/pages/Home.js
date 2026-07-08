@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getStats, getFeaturedOpportunities } from "../api";
+import { getStats, getFeaturedJobs } from "../api";
 import OpportunityCard from "../components/OpportunityCard";
 
 export default function Home() {
@@ -17,7 +17,7 @@ export default function Home() {
 
   useEffect(() => {
     // Fetch both stats and featured opportunities simultaneously
-    Promise.all([getStats(), getFeaturedOpportunities()])
+    Promise.all([getStats(), getFeaturedJobs()])
       .then(([statsRes, featuredRes]) => {
         setStats(statsRes.data);
         setFeatured(featuredRes.data);
@@ -205,7 +205,7 @@ export default function Home() {
               }}
             >
               {featured.map((opp) => (
-                <OpportunityCard key={opp.id} opportunity={opp} />
+                <OpportunityCard key={opp.unique_key || `${opp.source}-${opp.id}`} opportunity={opp} />
               ))}
             </div>
           )}
