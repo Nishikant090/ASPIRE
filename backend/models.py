@@ -91,10 +91,7 @@ class Student(Base):
     applications = relationship("Application", back_populates="student", cascade="all, delete-orphan")
     company_applications = relationship("CompanyApplication", back_populates="student")
 
-    __table_args__ = (
-        Index("ix_students_personal_email", "personal_email"),
-        Index("ix_students_college_email", "college_email"),
-    )
+
 
     @property
     def name(self):
